@@ -1,55 +1,56 @@
-import { kv } from '@vercel/kv';
+import Redis from 'ioredis';
 import { NextResponse } from 'next/server';
 
 const DB_KEY = 'gymflow_licenses';
 
+// Fallback to REDIS_URL or KV_URL (Vercel standard)
+const redisUrl = process.env.REDIS_URL || process.env.KV_URL || process.env.UPSTASH_REDIS_REST_URL;
+const redis = redisUrl ? new Redis(redisUrl) : null;
+
 export async function GET() {
   try {
-    const licenses = (await kv.get(DB_KEY)) || [];
+    if (!redis) return NextResponse.json([]);
+    const data = await redis.get(DB_KEY);
+    const licenses = data ? JSON.parse(data) : [];
     return NextResponse.json(licenses);
   } catch (error) {
-    console.error('KV GET Error:', error);
-    // Fallback to empty array if KV isn't configured during local build testing
+    console.error('Redis GET Error:', error);
     return NextResponse.json([]);
   }
 }
 
 export async function POST(request) {
   try {
+    if (!redis) throw new Error("No Redis connection string found");
+    
     const newLicense = await request.json();
-    let licenses = (await kv.get(DB_KEY)) || [];
+    const data = await redis.get(DB_KEY);
+    let licenses = data ? JSON.parse(data) : [];
 
-    // Ensure it's an array
-    if (!Array.isArray(licenses)) {
-      licenses = [];
-    }
+    if (!Array.isArray(licenses)) licenses = [];
 
-    // Check if machineId already exists
     const existingIndex = licenses.findIndex(
       (l) => l.machineId.toUpperCase() === newLicense.machineId.toUpperCase()
     );
 
     if (existingIndex >= 0) {
-      // Update existing
       licenses[existingIndex] = {
         ...licenses[existingIndex],
         ...newLicense,
         machineId: newLicense.machineId.toUpperCase()
       };
     } else {
-      // Add new
       licenses.push({
         ...newLicense,
         machineId: newLicense.machineId.toUpperCase()
       });
     }
 
-    // Save back to KV
-    await kv.set(DB_KEY, licenses);
+    await redis.set(DB_KEY, JSON.stringify(licenses));
 
     return NextResponse.json({ success: true, licenses });
   } catch (error) {
-    console.error('KV POST Error:', error);
+    console.error('Redis POST Error:', error);
     return NextResponse.json({ error: 'Failed to save to database' }, { status: 500 });
   }
 }
