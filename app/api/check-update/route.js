@@ -10,8 +10,8 @@ export async function GET(request) {
   try {
     // Return the latest available version and its direct download URL
     return NextResponse.json({
-      version: '1.0.5',
-      downloadUrl: 'https://github.com/Sohaib-Kamal04/Gym-Saas/releases/download/v1.0.3/GymFlow.exe'
+      version: '1.0.6',
+      downloadUrl: 'https://github.com/Sohaib-Kamal04/Gym-Saas/releases/download/v1.0.6/GymFlow.exe'
     });
   } catch (error) {
     return NextResponse.json(
