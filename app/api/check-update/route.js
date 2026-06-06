@@ -11,7 +11,7 @@ export async function GET(request) {
     // Return the latest available version and its direct download URL
     return NextResponse.json({
       version: '1.0.1',
-      downloadUrl: 'https://example.com/downloads/GymFlow.exe'
+      downloadUrl: 'https://github.com/Sohaib-Kamal04/Gym-Saas/releases/download/Pilot/GymFlow.exe'
     });
   } catch (error) {
     return NextResponse.json(
