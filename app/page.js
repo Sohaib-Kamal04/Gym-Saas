@@ -2,9 +2,14 @@
 import { useState, useEffect } from 'react';
 
 export default function GymFlowDashboard() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  
   const [activeTab, setActiveTab] = useState('dashboard');
   const [licenses, setLicenses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     gymName: '',
     ownerName: '',
@@ -15,8 +20,40 @@ export default function GymFlowDashboard() {
   });
 
   useEffect(() => {
-    fetchLicenses();
+    const auth = sessionStorage.getItem('gymflow_admin_auth');
+    if (auth === 'true') {
+      setIsLoggedIn(true);
+      fetchLicenses();
+    }
   }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (res.ok) {
+        sessionStorage.setItem('gymflow_admin_auth', 'true');
+        setIsLoggedIn(true);
+        fetchLicenses();
+      } else {
+        const err = await res.json();
+        setLoginError(err.error || 'Invalid passcode');
+      }
+    } catch (e) {
+      setLoginError('Authentication failed');
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('gymflow_admin_auth');
+    setIsLoggedIn(false);
+    setPassword('');
+  };
 
   const fetchLicenses = async () => {
     try {
@@ -43,16 +80,56 @@ export default function GymFlowDashboard() {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
+  const handleAddClick = () => {
+    setFormData({
+      gymName: '',
+      ownerName: '',
+      phone: '',
+      machineId: '',
+      plan: 'SaaS Starter',
+      expiry: ''
+    });
+    setIsEditing(false);
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (gym) => {
+    setFormData({
+      gymName: gym.name,
+      ownerName: gym.ownerName || '',
+      phone: gym.phone,
+      machineId: gym.machineId,
+      plan: gym.plan,
+      expiry: gym.expiry
+    });
+    setIsEditing(true);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setIsEditing(false);
+    setFormData({
+      gymName: '',
+      ownerName: '',
+      phone: '',
+      machineId: '',
+      plan: 'SaaS Starter',
+      expiry: ''
+    });
+  };
+
   const handleAddGym = async (e) => {
     e.preventDefault();
     try {
+      const existingGym = licenses.find(l => l.machineId.toUpperCase() === formData.machineId.toUpperCase());
       const payload = {
         machineId: formData.machineId.trim().toUpperCase(),
         name: formData.gymName,
         phone: formData.phone,
         plan: formData.plan,
         expiry: formData.expiry,
-        status: 'Active'
+        status: existingGym ? existingGym.status : 'Active'
       };
 
       const res = await fetch('/api/licenses', {
@@ -63,6 +140,7 @@ export default function GymFlowDashboard() {
       
       if (res.ok) {
         setIsModalOpen(false);
+        setIsEditing(false);
         fetchLicenses();
         setFormData({ gymName: '', ownerName: '', phone: '', machineId: '', plan: 'SaaS Starter', expiry: '' });
       }
@@ -86,6 +164,38 @@ export default function GymFlowDashboard() {
     }
   };
 
+  if (!isLoggedIn) {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <div className="brand-header" style={{ marginBottom: '30px' }}>
+            <span className="brand-glow"></span>
+            <h1 style={{ fontSize: '24px' }}>GYMFLOW HUB</h1>
+            <p>ADMIN PORTAL ACCESS</p>
+          </div>
+          <form onSubmit={handleLogin}>
+            <div className="form-group" style={{ marginBottom: '25px' }}>
+              <label htmlFor="adminPassword">Security Passcode</label>
+              <input
+                type="password"
+                id="adminPassword"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter admin passcode"
+                required
+                autoFocus
+              />
+              {loginError && <p className="error-text">{loginError}</p>}
+            </div>
+            <button type="submit" className="primary-btn full-btn" style={{ padding: '14px' }}>
+              Verify Credentials
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="hub-container">
       {/* SIDEBAR NAVIGATION */}
@@ -102,6 +212,9 @@ export default function GymFlowDashboard() {
           </button>
           <button className={`nav-btn ${activeTab === 'roster' ? 'active' : ''}`} onClick={() => setActiveTab('roster')}>
             <span className="nav-icon">🏢</span> Gym Directory
+          </button>
+          <button className="nav-btn" onClick={handleLogout} style={{ marginTop: '20px', backgroundColor: 'transparent', border: '1.5px dashed #3a3a4c', color: 'var(--accent-red)' }}>
+            <span className="nav-icon">🔒</span> Log Out Session
           </button>
         </nav>
 
@@ -147,7 +260,7 @@ export default function GymFlowDashboard() {
                 <h3>Quick Client Onboarding</h3>
                 <p>A new gym owner installed GymFlow Pro? Input their Machine Key to instantly issue their first monthly license.</p>
               </div>
-              <button className="banner-action-btn" onClick={() => setIsModalOpen(true)}>
+              <button className="banner-action-btn" onClick={handleAddClick}>
                 + Register Gym Client
               </button>
             </div>
@@ -163,7 +276,7 @@ export default function GymFlowDashboard() {
                   <h2>Gym Clients Directory</h2>
                   <p>Manage registered gym owners, monitor payments, and extend subscriptions.</p>
                 </div>
-                <button className="primary-btn" onClick={() => setIsModalOpen(true)}>+ Add New Gym Owner</button>
+                <button className="primary-btn" onClick={handleAddClick}>+ Add New Gym Owner</button>
               </div>
             </div>
 
@@ -199,7 +312,7 @@ export default function GymFlowDashboard() {
                         </span>
                       </td>
                       <td className="table-actions">
-                        <button className="action-btn extend-btn" onClick={() => setIsModalOpen(true)}>Edit</button>
+                        <button className="action-btn extend-btn" onClick={() => handleEditClick(gym)}>Edit</button>
                         <button className="action-btn delete-btn" onClick={() => toggleStatus(gym)}>
                           {gym.status === 'Active' ? 'Revoke' : 'Activate'}
                         </button>
@@ -222,8 +335,8 @@ export default function GymFlowDashboard() {
       <div className={`modal-overlay ${isModalOpen ? 'open' : ''}`}>
         <div className="modal-card">
           <div className="modal-header">
-            <h3>Onboard New Gym Owner</h3>
-            <button className="close-modal" onClick={() => setIsModalOpen(false)}>&times;</button>
+            <h3>{isEditing ? 'Edit Gym Client License' : 'Onboard New Gym Owner'}</h3>
+            <button className="close-modal" onClick={handleCloseModal}>&times;</button>
           </div>
           <form onSubmit={handleAddGym}>
             <div className="form-group">
@@ -236,7 +349,16 @@ export default function GymFlowDashboard() {
             </div>
             <div className="form-group">
               <label htmlFor="machineId">Machine Unique Lock ID (from WPF Client)</label>
-              <input type="text" id="machineId" value={formData.machineId} onChange={handleInputChange} placeholder="Copy-paste WPF Hardware Key" required />
+              <input 
+                type="text" 
+                id="machineId" 
+                value={formData.machineId} 
+                onChange={handleInputChange} 
+                placeholder="Copy-paste WPF Hardware Key" 
+                required 
+                readOnly={isEditing} 
+                style={isEditing ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#17171d' } : {}}
+              />
             </div>
             <div className="form-group-row">
               <div className="form-group">
@@ -253,8 +375,8 @@ export default function GymFlowDashboard() {
               </div>
             </div>
             <div className="modal-actions">
-              <button type="button" className="sec-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
-              <button type="submit" className="primary-btn">Complete Onboarding</button>
+              <button type="button" className="sec-btn" onClick={handleCloseModal}>Cancel</button>
+              <button type="submit" className="primary-btn">{isEditing ? 'Save Changes' : 'Complete Onboarding'}</button>
             </div>
           </form>
         </div>
