@@ -15,7 +15,8 @@ export default function GymFlowDashboard() {
     ownerName: '',
     phone: '',
     machineId: '',
-    plan: 'SaaS Starter',
+    machineId: '',
+    plan: '',
     expiry: ''
   });
 
@@ -72,6 +73,13 @@ export default function GymFlowDashboard() {
     if (curr.plan === 'SaaS Starter') return acc + 10000;
     if (curr.plan === 'SaaS Pro') return acc + 18000;
     if (curr.plan === 'SaaS Unlimited') return acc + 30000;
+    
+    // Attempt to extract numeric value from custom plan strings
+    const match = curr.plan.match(/\d+(?:,\d+)*(?:\.\d+)?/);
+    if (match) {
+      const parsedValue = parseFloat(match[0].replace(/,/g, ''));
+      return acc + (isNaN(parsedValue) ? 0 : parsedValue);
+    }
     return acc;
   }, 0);
   const expiredLicenses = licenses.filter(l => l.status !== 'Active').length;
@@ -86,7 +94,8 @@ export default function GymFlowDashboard() {
       ownerName: '',
       phone: '',
       machineId: '',
-      plan: 'SaaS Starter',
+      machineId: '',
+      plan: '',
       expiry: ''
     });
     setIsEditing(false);
@@ -114,7 +123,8 @@ export default function GymFlowDashboard() {
       ownerName: '',
       phone: '',
       machineId: '',
-      plan: 'SaaS Starter',
+      machineId: '',
+      plan: '',
       expiry: ''
     });
   };
@@ -142,7 +152,7 @@ export default function GymFlowDashboard() {
         setIsModalOpen(false);
         setIsEditing(false);
         fetchLicenses();
-        setFormData({ gymName: '', ownerName: '', phone: '', machineId: '', plan: 'SaaS Starter', expiry: '' });
+        setFormData({ gymName: '', ownerName: '', phone: '', machineId: '', plan: '', expiry: '' });
       }
     } catch (e) {
       console.error(e);
@@ -161,6 +171,23 @@ export default function GymFlowDashboard() {
       fetchLicenses();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleDelete = async (machineId) => {
+    if (!confirm('Are you sure you want to permanently delete this gym?')) return;
+    try {
+      const res = await fetch(`/api/licenses?machineId=${encodeURIComponent(machineId)}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchLicenses();
+      } else {
+        alert('Failed to delete gym.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error deleting gym.');
     }
   };
 
@@ -316,6 +343,9 @@ export default function GymFlowDashboard() {
                         <button className="action-btn delete-btn" onClick={() => toggleStatus(gym)}>
                           {gym.status === 'Active' ? 'Revoke' : 'Activate'}
                         </button>
+                        <button className="action-btn" style={{backgroundColor: 'transparent', border: '1px solid #e74c3c', color: '#e74c3c', marginLeft: '5px'}} onClick={() => handleDelete(gym.machineId)}>
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -362,12 +392,15 @@ export default function GymFlowDashboard() {
             </div>
             <div className="form-group-row">
               <div className="form-group">
-                <label htmlFor="plan">Plan Tier Package</label>
-                <select id="plan" value={formData.plan} onChange={handleInputChange}>
-                  <option value="SaaS Starter">SaaS Starter (Rs. 10,000/mo)</option>
-                  <option value="SaaS Pro">SaaS Pro (Rs. 18,000/mo)</option>
-                  <option value="SaaS Unlimited">SaaS Unlimited (Rs. 30,000/mo)</option>
-                </select>
+                <label htmlFor="plan">Plan Tier Package (Name &amp; Amount)</label>
+                <input 
+                  type="text" 
+                  id="plan" 
+                  value={formData.plan} 
+                  onChange={handleInputChange} 
+                  placeholder="e.g. Custom Plan (Rs. 15,000/mo)" 
+                  required 
+                />
               </div>
               <div className="form-group">
                 <label htmlFor="expiry">First Payment Expiry Date</label>
